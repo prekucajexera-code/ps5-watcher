@@ -33,8 +33,6 @@ CHECK_INTERVAL_SEC = int(os.environ.get("CHECK_INTERVAL_SEC", "180"))
 
 SEEN_FILE = "seen_ads.json"
 
-# Kategorija "PlayStation 5 konzole" - pokriva sve varijante (Slim/Digital/
-# Disc/Pro), sortirano po najnovijem prvo.
 SEARCH_URL = "https://www.njuskalo.hr/ps5-konzole?sort=new"
 
 HEADERS = {
@@ -75,7 +73,6 @@ def send_telegram(text: str):
 
 
 def parse_price(raw: str):
-    """'1.234,00 EUR' / '399 €' -> 399.0 ili None ako se ne da parsirati (npr. 'po dogovoru')"""
     if not raw:
         return None
     raw = raw.strip()
@@ -95,23 +92,26 @@ def parse_price(raw: str):
 def fetch_ads():
     resp = requests.get(SEARCH_URL, headers=HEADERS, timeout=20)
     resp.raise_for_status()
+    log.info(
+        "Debug: status=%d, duzina_html=%d, sadrzi_EntityList=%s",
+        resp.status_code,
+        len(resp.text),
+        "EntityList-item" in resp.text,
+    )
     soup = BeautifulSoup(resp.text, "html.parser")
 
     ads = []
-    # Svaki oglas je <li class="EntityList-item ..."> koji sadrzi <article class="entity-body">
-    # (potvrdjeno na stvarnom HTML-u 14.08.2026 - ako opet stane, provjeri view-source)
     items = soup.select("li.EntityList-item")
 
     for item in items:
         article = item.select_one("article.entity-body")
         if not article:
-            continue  # preskoci bannere/CTA stavke koje nisu pravi oglasi
+            continue
 
         link_tag = article.select_one("h3.entity-title a.link")
         if not link_tag or not link_tag.get("href"):
             continue
         href = link_tag["href"]
-        # ad id je broj nakon zadnjeg "-" u URL-u, npr. ...-oglas-51211819 -> 51211819
         ad_id = href.rstrip("/").split("-")[-1]
 
         title = link_tag.get_text(strip=True)
