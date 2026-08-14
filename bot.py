@@ -141,13 +141,7 @@ def fetch_ads():
     soup = BeautifulSoup(html, "html.parser")
 
     ads = []
-    # Oglasi su unutar section.EntityList--Regular ili section.EntityList--VauVau
-    # (glavna lista rezultata). NE koristimo golo "li.EntityList-item" jer to
-    # hvata i "Posljednji oglasi" widget sa strane (sve kategorije, ne samo PS5).
-    sections = soup.select("section.EntityList--Regular, section.EntityList--VauVau")
-    items = []
-    for section in sections:
-        items.extend(section.select("li.EntityList-item"))
+    items = soup.select("li.EntityList-item")
 
     for item in items:
         article = item.select_one("article.entity-body")
@@ -158,6 +152,10 @@ def fetch_ads():
         if not link_tag or not link_tag.get("href"):
             continue
         href = link_tag["href"]
+
+        if not href.startswith("/ps5-konzole/"):
+            continue
+
         ad_id = href.rstrip("/").split("-")[-1]
 
         title = link_tag.get_text(strip=True)
