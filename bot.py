@@ -43,6 +43,18 @@ HEADERS = {
     "Accept-Language": "hr-HR,hr;q=0.9,en-US;q=0.8,en;q=0.7",
 }
 
+# Rezidencijalni proxy (DataImpulse) - postavi ove ENV varijable u Railway
+# ako Njuškalo blokira direktne zahtjeve (ShieldSquare captcha).
+PROXY_HOST = os.environ.get("PROXY_HOST")
+PROXY_PORT = os.environ.get("PROXY_PORT")
+PROXY_USERNAME = os.environ.get("PROXY_USERNAME")
+PROXY_PASSWORD = os.environ.get("PROXY_PASSWORD")
+
+PROXIES = None
+if PROXY_HOST and PROXY_PORT and PROXY_USERNAME and PROXY_PASSWORD:
+    proxy_url = f"http://{PROXY_USERNAME}:{PROXY_PASSWORD}@{PROXY_HOST}:{PROXY_PORT}"
+    PROXIES = {"http": proxy_url, "https": proxy_url}
+
 
 def load_seen():
     if os.path.exists(SEEN_FILE):
@@ -90,7 +102,7 @@ def parse_price(raw: str):
 
 
 def fetch_ads():
-    resp = requests.get(SEARCH_URL, headers=HEADERS, timeout=20)
+    resp = requests.get(SEARCH_URL, headers=HEADERS, proxies=PROXIES, timeout=30)
     resp.raise_for_status()
     log.info(
         "Debug: status=%d, duzina_html=%d, sadrzi_EntityList=%s",
@@ -169,10 +181,11 @@ def check_once(seen):
 
 def main():
     log.info(
-        "Pokrećem watcher | url=%s | prag=%.0f€ | interval=%ds",
+        "Pokrećem watcher | url=%s | prag=%.0f€ | interval=%ds | proxy=%s",
         SEARCH_URL,
         PRICE_THRESHOLD,
         CHECK_INTERVAL_SEC,
+        "DA" if PROXIES else "NE",
     )
     seen = load_seen()
     while True:
