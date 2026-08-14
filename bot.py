@@ -141,7 +141,13 @@ def fetch_ads():
     soup = BeautifulSoup(html, "html.parser")
 
     ads = []
-    items = soup.select("li.EntityList-item")
+    # Oglasi su unutar section.EntityList--Regular ili section.EntityList--VauVau
+    # (glavna lista rezultata). NE koristimo golo "li.EntityList-item" jer to
+    # hvata i "Posljednji oglasi" widget sa strane (sve kategorije, ne samo PS5).
+    sections = soup.select("section.EntityList--Regular, section.EntityList--VauVau")
+    items = []
+    for section in sections:
+        items.extend(section.select("li.EntityList-item"))
 
     for item in items:
         article = item.select_one("article.entity-body")
