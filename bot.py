@@ -205,7 +205,23 @@ def check_once(seen):
     return seen
 
 
+def ensure_browser_installed():
+    """Instalira Chromium ako jos nije prisutan (prvi put pri pokretanju)."""
+    import subprocess
+    log.info("Provjeravam/instaliram Playwright Chromium...")
+    result = subprocess.run(
+        ["playwright", "install", "--with-deps", "chromium"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        log.error("Instalacija Chromiuma nije uspjela: %s", result.stderr[-1000:])
+    else:
+        log.info("Chromium spreman.")
+
+
 def main():
+    ensure_browser_installed()
     log.info(
         "Pokrećem watcher | url=%s | prag=%.0f€ | interval=%ds | proxy=%s",
         SEARCH_URL,
