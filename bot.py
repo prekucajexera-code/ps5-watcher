@@ -98,6 +98,8 @@ def fetch_ads():
         len(resp.text),
         "EntityList-item" in resp.text,
     )
+    if "EntityList-item" not in resp.text:
+        log.info("Debug HTML sadrzaj (prvih 2000 znakova): %s", resp.text[:2000])
     soup = BeautifulSoup(resp.text, "html.parser")
 
     ads = []
