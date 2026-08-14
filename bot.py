@@ -1,15 +1,15 @@
 """
 Njuškalo PS5 Watcher Bot
 -------------------------
-Prati Njuškalo oglase za "playstation 5" i šalje Telegram notifikaciju
-kad se pojavi nov oglas ispod zadane cijene.
+Prati Njuškalo kategoriju "PlayStation 5 konzole" (pokriva Slim/Digital/
+Disc/Pro) i šalje Telegram notifikaciju kad se pojavi nov oglas ispod
+zadane cijene.
 
 ENV varijable (postavi ih u Railway -> Variables):
   TELEGRAM_BOT_TOKEN   - token bota (od @BotFather)
-  TELEGRAM_CHAT_ID     - tvoj chat ID (od @userinfobot npr.)
+  TELEGRAM_CHAT_ID     - tvoj chat ID
   PRICE_THRESHOLD      - npr. 400 (EUR) - default 400
-  CHECK_INTERVAL_SEC   - npr. 120 - default 180
-  SEARCH_QUERY         - default "playstation 5"
+  CHECK_INTERVAL_SEC   - npr. 180 - default 180
 """
 
 import os
@@ -30,16 +30,12 @@ TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 PRICE_THRESHOLD = float(os.environ.get("PRICE_THRESHOLD", "400"))
 CHECK_INTERVAL_SEC = int(os.environ.get("CHECK_INTERVAL_SEC", "180"))
-SEARCH_QUERY = os.environ.get("SEARCH_QUERY", "playstation 5")
 
 SEEN_FILE = "seen_ads.json"
 
-SEARCH_URL = (
-    "https://www.njuskalo.hr/igrice-konzole/oglasi"
-    "?keyword={query}"
-    "&priceTo={price}"
-    "&sort=newest"
-)
+# Kategorija "PlayStation 5 konzole" - pokriva sve varijante (Slim/Digital/
+# Disc/Pro), sortirano po najnovijem prvo.
+SEARCH_URL = "https://www.njuskalo.hr/ps5-konzole?sort=new"
 
 HEADERS = {
     "User-Agent": (
@@ -48,8 +44,6 @@ HEADERS = {
     ),
     "Accept-Language": "hr-HR,hr;q=0.9,en-US;q=0.8,en;q=0.7",
 }
-
-VARIANT_KEYWORDS = ["slim", "digital", "disc", "pro", "standard", "fat"]
 
 
 def load_seen():
@@ -81,6 +75,7 @@ def send_telegram(text: str):
 
 
 def parse_price(raw: str):
+    """'1.234,00 EUR' / '399 €' -> 399.0 ili None ako se ne da parsirati (npr. 'po dogovoru')"""
     if not raw:
         return None
     raw = raw.strip()
@@ -98,24 +93,30 @@ def parse_price(raw: str):
 
 
 def fetch_ads():
-    url = SEARCH_URL.format(query=requests.utils.quote(SEARCH_QUERY), price=int(PRICE_THRESHOLD))
-    resp = requests.get(url, headers=HEADERS, timeout=20)
+    resp = requests.get(SEARCH_URL, headers=HEADERS, timeout=20)
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
 
     ads = []
-    items = soup.select("article.EntityList-item")
+    # Svaki oglas je <li class="EntityList-item ..."> koji sadrzi <article class="entity-body">
+    # (potvrdjeno na stvarnom HTML-u 14.08.2026 - ako opet stane, provjeri view-source)
+    items = soup.select("li.EntityList-item")
 
     for item in items:
-        link_tag = item.select_one("a.link")
+        article = item.select_one("article.entity-body")
+        if not article:
+            continue  # preskoci bannere/CTA stavke koje nisu pravi oglasi
+
+        link_tag = article.select_one("h3.entity-title a.link")
         if not link_tag or not link_tag.get("href"):
             continue
         href = link_tag["href"]
-        ad_id = href.rstrip("/").split("/")[-1]
+        # ad id je broj nakon zadnjeg "-" u URL-u, npr. ...-oglas-51211819 -> 51211819
+        ad_id = href.rstrip("/").split("-")[-1]
 
         title = link_tag.get_text(strip=True)
 
-        price_tag = item.select_one(".entity-prices .price--hrk, .price, .EntityList-priceRegular")
+        price_tag = article.select_one(".entity-prices strong.price")
         price_raw = price_tag.get_text(strip=True) if price_tag else None
         price = parse_price(price_raw)
 
@@ -166,8 +167,8 @@ def check_once(seen):
 
 def main():
     log.info(
-        "Pokrećem watcher | query='%s' | prag=%.0f€ | interval=%ds",
-        SEARCH_QUERY,
+        "Pokrećem watcher | url=%s | prag=%.0f€ | interval=%ds",
+        SEARCH_URL,
         PRICE_THRESHOLD,
         CHECK_INTERVAL_SEC,
     )
