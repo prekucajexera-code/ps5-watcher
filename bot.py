@@ -29,6 +29,7 @@ log = logging.getLogger("ps5-watcher")
 
 TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
+PRICE_MIN = float(os.environ.get("PRICE_MIN", "200"))
 PRICE_THRESHOLD = float(os.environ.get("PRICE_THRESHOLD", "400"))
 CHECK_INTERVAL_SEC = int(os.environ.get("CHECK_INTERVAL_SEC", "180"))
 
@@ -203,14 +204,17 @@ def check_once(seen, browser):
             continue
         seen.add(ad["id"])
 
-        # cijena "po dogovoru" ili neparsirana - preskoci filter, ali javi da provjeris rucno
-        if ad["price"] is not None and ad["price"] > PRICE_THRESHOLD:
+        # cijena mora biti unutar raspona; ako je nepoznata ("po dogovoru"),
+        # preskoci je - ne zelimo javljati za oglase gdje ne znamo cijenu
+        if ad["price"] is None:
+            continue
+        if not (PRICE_MIN <= ad["price"] <= PRICE_THRESHOLD):
             continue
 
         new_count += 1
         price_display = ad["price_raw"] or "cijena nepoznata"
         text = (
-            f"🎮 <b>Novi PS5 oglas ispod {int(PRICE_THRESHOLD)}€!</b>\n\n"
+            f"🎮 <b>Novi PS5 oglas {int(PRICE_MIN)}-{int(PRICE_THRESHOLD)}€!</b>\n\n"
             f"{ad['title']}\n"
             f"💶 {price_display}\n"
             f"{ad['url']}"
@@ -249,8 +253,9 @@ def launch_browser(p):
 def main():
     ensure_browser_installed()
     log.info(
-        "Pokrećem watcher | url=%s | prag=%.0f€ | interval=%ds | proxy=%s",
+        "Pokrećem watcher | url=%s | raspon=%.0f-%.0f€ | interval=%ds | proxy=%s",
         SEARCH_URL,
+        PRICE_MIN,
         PRICE_THRESHOLD,
         CHECK_INTERVAL_SEC,
         "DA" if PROXIES else "NE",
